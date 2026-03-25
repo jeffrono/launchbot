@@ -160,6 +160,6 @@ export async function GET() {
     return json({ success: true, modulesSeeded: created });
   } catch (e) {
     console.error("Seed error:", e);
-    return error(`Seed failed: ${e}`, 500);
+    return error("Seed failed. Check server logs.", 500);
   }
 }

@@ -111,7 +111,7 @@ export interface BotResponse {
   messages: RichMessage[];
   sideTip?: SideTip;
   moduleUpdate?: {
-    moduleId: string;
+    moduleSlug: string;
     status: "in_progress" | "completed" | "punted";
     collectedData?: Record<string, unknown>;
   };

@@ -1,14 +1,24 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Image from "next/image";
 
 interface ImageDisplayProps {
   url: string;
   caption?: string;
 }
 
+function isAllowedImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function ImageDisplay({ url, caption }: ImageDisplayProps) {
+  if (!isAllowedImageUrl(url)) return null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -17,12 +27,11 @@ export function ImageDisplay({ url, caption }: ImageDisplayProps) {
       className="mr-auto w-full max-w-[80%] rounded-2xl overflow-hidden border border-gray-200"
     >
       <div className="relative w-full h-48">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={url}
           alt={caption || "Image"}
-          fill
-          className="object-cover"
-          unoptimized
+          className="w-full h-full object-cover"
         />
       </div>
       {caption && (

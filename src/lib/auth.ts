@@ -10,8 +10,15 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const adminUser = process.env.ADMIN_USERNAME || "admin";
-        const adminPass = process.env.ADMIN_PASSWORD || "change-me";
+        const adminUser = process.env.ADMIN_USERNAME;
+        const adminPass = process.env.ADMIN_PASSWORD;
+
+        if (!adminUser || !adminPass) {
+          console.error(
+            "ADMIN_USERNAME and ADMIN_PASSWORD environment variables must be set"
+          );
+          return null;
+        }
 
         if (
           credentials?.username === adminUser &&

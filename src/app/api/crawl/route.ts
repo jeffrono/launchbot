@@ -10,6 +10,26 @@ export async function POST(req: NextRequest) {
   if (!url) return error("URL is required");
   if (!customerId) return error("Customer ID is required");
 
+  // Validate URL to prevent SSRF
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return error("URL must use http or https");
+    }
+    const blockedHosts = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
+    if (
+      blockedHosts.includes(parsed.hostname) ||
+      parsed.hostname.startsWith("169.254.") ||
+      parsed.hostname.startsWith("10.") ||
+      parsed.hostname.startsWith("192.168.") ||
+      parsed.hostname.startsWith("172.16.")
+    ) {
+      return error("Internal URLs are not allowed");
+    }
+  } catch {
+    return error("Invalid URL format");
+  }
+
   const firecrawlKey = process.env.FIRECRAWL_API_KEY;
   if (!firecrawlKey) {
     return error("Firecrawl API key not configured", 503);

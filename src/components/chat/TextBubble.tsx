@@ -9,6 +9,11 @@ interface TextBubbleProps {
   role: "user" | "assistant";
 }
 
+function sanitizeUrl(url: string): string {
+  if (url.startsWith("javascript:") || url.startsWith("data:")) return "";
+  return url;
+}
+
 export function TextBubble({ content, role }: TextBubbleProps) {
   return (
     <motion.div
@@ -24,7 +29,11 @@ export function TextBubble({ content, role }: TextBubbleProps) {
     >
       {role === "assistant" ? (
         <div className="prose prose-sm max-w-none prose-p:my-1 prose-strong:text-gray-900 prose-ul:my-1 prose-li:my-0">
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown
+            urlTransform={sanitizeUrl}
+          >
+            {content}
+          </ReactMarkdown>
         </div>
       ) : (
         content.split("\n").map((line, i) => (

@@ -132,7 +132,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       collectedData?: Record<string, unknown>;
     };
 
-    if (moduleSlug && status) {
+    const validStatuses = ["in_progress", "completed", "punted"];
+    if (moduleSlug && status && validStatuses.includes(status)) {
       const module = await prisma.module.findUnique({
         where: { slug: moduleSlug },
       });
