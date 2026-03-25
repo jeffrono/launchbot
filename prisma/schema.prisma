@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────
+
+enum ModuleStatus {
+  not_started
+  in_progress
+  punted
+  completed
+}
+
+enum DataType {
+  classes
+  staff
+  appointments
+  pricing
+  memberships
+  branding
+  business_info
+  marketplace
+  classpass
+  kickoff
+}
+
+// ─── Customers ───────────────────────────────────────────────────────
+
+model Customer {
+  id             String   @id @default(uuid())
+  name           String
+  studioId       String?  @map("studio_id")
+  workspaceSlug  String   @unique @map("workspace_slug")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  progress       CustomerModuleProgress[]
+  conversations  Conversation[]
+  collectedData  CustomerCollectedData[]
+
+  @@map("customers")
+}
+
+// ─── Modules ─────────────────────────────────────────────────────────
+
+model Module {
+  id                   String  @id @default(uuid())
+  slug                 String  @unique
+  title                String
+  description          String  @default("")
+  systemPromptFragment String  @default("") @map("system_prompt_fragment") @db.Text
+  content              Json    @default("{}")
+  displayOrder         Int     @map("display_order")
+  dependencyGroup      String? @map("dependency_group")
+  dependencyOrder      Int     @default(0) @map("dependency_order")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  progress             CustomerModuleProgress[]
+
+  @@map("modules")
+}
+
+// ─── Customer Module Progress ────────────────────────────────────────
+
+model CustomerModuleProgress {
+  id            String       @id @default(uuid())
+  customerId    String       @map("customer_id")
+  moduleId      String       @map("module_id")
+  status        ModuleStatus @default(not_started)
+  puntedAt      DateTime?    @map("punted_at")
+  completedAt   DateTime?    @map("completed_at")
+  collectedData Json         @default("{}") @map("collected_data")
+
+  customer      Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  module        Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, moduleId])
+  @@map("customer_module_progress")
+}
+
+// ─── Conversations ───────────────────────────────────────────────────
+
+model Conversation {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  messages    Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("conversations")
+}
+
+// ─── Customer Collected Data ─────────────────────────────────────────
+
+model CustomerCollectedData {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  dataType    DataType @map("data_type")
+  data        Json     @default("{}")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, dataType])
+  @@map("customer_collected_data")
+}
