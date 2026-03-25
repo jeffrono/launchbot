@@ -48,6 +48,30 @@ export function ChatWorkspace({
     });
   }, []);
 
+  // Auto-trigger welcome message on first load if no messages
+  useEffect(() => {
+    if (messages.length === 0 && !isLoading) {
+      const initChat = async () => {
+        setIsLoading(true);
+        try {
+          const res = await fetch(`/api/chat/${slug}`);
+          const data = await res.json();
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages);
+          }
+          if (data.progress) {
+            setProgress(data.progress);
+          }
+        } catch (err) {
+          console.error("Failed to init chat:", err);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      initChat();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
