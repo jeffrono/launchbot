@@ -15,7 +15,7 @@ import { QuickReply } from "./QuickReply";
 
 interface MessageRendererProps {
   messages: RichMessage[];
-  onAction: (value: string) => void;
+  onAction: (value: string, label?: string) => void;
   onFileUpload: (files: File[]) => void;
   isLatest: boolean;
 }

@@ -14,7 +14,7 @@ interface OptionCard {
 interface OptionCardsProps {
   title: string;
   cards: OptionCard[];
-  onSelect: (value: string) => void;
+  onSelect: (value: string, label?: string) => void;
   disabled?: boolean;
 }
 
@@ -31,7 +31,7 @@ export function OptionCards({ title, cards, onSelect, disabled }: OptionCardsPro
         {cards.map((card, i) => (
           <button
             key={i}
-            onClick={() => onSelect(card.value)}
+            onClick={() => onSelect(card.value, card.title)}
             disabled={disabled}
             className={cn(
               "relative rounded-xl border-2 p-4 text-left transition-all",

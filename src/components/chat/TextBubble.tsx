@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/cn";
 
 interface TextBubbleProps {
@@ -21,11 +22,17 @@ export function TextBubble({ content, role }: TextBubbleProps) {
           : "mr-auto bg-gray-100 text-gray-900"
       )}
     >
-      {content.split("\n").map((line, i) => (
-        <p key={i} className={i > 0 ? "mt-2" : ""}>
-          {line}
-        </p>
-      ))}
+      {role === "assistant" ? (
+        <div className="prose prose-sm max-w-none prose-p:my-1 prose-strong:text-gray-900 prose-ul:my-1 prose-li:my-0">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+      ) : (
+        content.split("\n").map((line, i) => (
+          <p key={i} className={i > 0 ? "mt-2" : ""}>
+            {line}
+          </p>
+        ))
+      )}
     </motion.div>
   );
 }

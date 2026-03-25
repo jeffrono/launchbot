@@ -133,8 +133,9 @@ export function ChatWorkspace({
     }
   };
 
-  const handleAction = (value: string) => {
-    sendMessage(value, true);
+  const handleAction = (value: string, label?: string) => {
+    // Send the human-readable label to the LLM, not the machine value
+    sendMessage(label || value, true);
   };
 
   const handleFileUpload = (files: File[]) => {

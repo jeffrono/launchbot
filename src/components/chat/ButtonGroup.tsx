@@ -11,7 +11,7 @@ interface ButtonOption {
 
 interface ButtonGroupProps {
   options: ButtonOption[];
-  onSelect: (value: string) => void;
+  onSelect: (value: string, label?: string) => void;
   disabled?: boolean;
 }
 
@@ -26,7 +26,7 @@ export function ButtonGroup({ options, onSelect, disabled }: ButtonGroupProps) {
       {options.map((opt, i) => (
         <button
           key={i}
-          onClick={() => onSelect(opt.value)}
+          onClick={() => onSelect(opt.value, opt.label)}
           disabled={disabled}
           className={cn(
             "rounded-xl px-5 py-2.5 text-sm font-medium transition-all",
