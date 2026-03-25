@@ -2,6 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { Plus, GripVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Module {
   id: string;
@@ -14,11 +29,80 @@ interface Module {
   content: Record<string, unknown>;
 }
 
+function SortableModule({
+  mod,
+  onEdit,
+  onDelete,
+}: {
+  mod: Module;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: mod.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors bg-white"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="w-4 h-4 text-gray-300" />
+      </button>
+      <span className="text-xs text-gray-400 w-8 text-right font-mono">
+        #{mod.displayOrder}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900">{mod.title}</p>
+        <p className="text-xs text-gray-400 truncate">
+          {mod.slug}
+          {mod.dependencyGroup && ` \u00b7 group: ${mod.dependencyGroup}`}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onEdit}
+          className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ModulesPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Module | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const fetchModules = async () => {
     const res = await fetch("/api/modules");
@@ -30,6 +114,28 @@ export default function ModulesPage() {
   useEffect(() => {
     fetchModules();
   }, []);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = modules.findIndex((m) => m.id === active.id);
+    const newIndex = modules.findIndex((m) => m.id === over.id);
+    const reordered = arrayMove(modules, oldIndex, newIndex);
+
+    // Update local state immediately
+    const updated = reordered.map((m, i) => ({ ...m, displayOrder: i + 1 }));
+    setModules(updated);
+
+    // Persist each changed order to the API
+    for (const mod of updated) {
+      await fetch(`/api/modules/${mod.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayOrder: mod.displayOrder }),
+      });
+    }
+  };
 
   const deleteModule = async (id: string) => {
     if (!confirm("Delete this module?")) return;
@@ -43,7 +149,7 @@ export default function ModulesPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Modules</h2>
           <p className="text-sm text-gray-400">
-            Manage onboarding modules and their prompts
+            Drag to reorder. Manage onboarding modules and their prompts.
           </p>
         </div>
         <button
@@ -74,43 +180,27 @@ export default function ModulesPage() {
       {loading ? (
         <p className="text-gray-400 text-sm">Loading...</p>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
-          {modules.map((mod) => (
-            <div
-              key={mod.id}
-              className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
-            >
-              <GripVertical className="w-4 h-4 text-gray-300 cursor-grab" />
-              <span className="text-xs text-gray-400 w-8 text-right font-mono">
-                #{mod.displayOrder}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">
-                  {mod.title}
-                </p>
-                <p className="text-xs text-gray-400 truncate">
-                  {mod.slug}
-                  {mod.dependencyGroup &&
-                    ` \u00b7 group: ${mod.dependencyGroup}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setEditing(mod)}
-                  className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => deleteModule(mod.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={modules.map((m) => m.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+              {modules.map((mod) => (
+                <SortableModule
+                  key={mod.id}
+                  mod={mod}
+                  onEdit={() => setEditing(mod)}
+                  onDelete={() => deleteModule(mod.id)}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );
