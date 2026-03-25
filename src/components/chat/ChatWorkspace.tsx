@@ -155,13 +155,20 @@ export function ChatWorkspace({
       {/* Center — chat */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Chat header */}
-        <div className="border-b border-gray-200 bg-white px-6 py-3">
-          <h1 className="text-lg font-semibold text-gray-900">
-            Mindbody Launch Bot
-          </h1>
-          <p className="text-xs text-gray-400">
-            Setting up {customerName}&apos;s workspace
-          </p>
+        <div className="border-b border-gray-200 bg-white px-6 py-3 flex items-center gap-3">
+          <img
+            src="https://app.spara.co/api/v1/organizations/qx6XUAM4W/default-sales-rep-avatar"
+            alt="Mindbody"
+            className="w-9 h-9 rounded-full"
+          />
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Mindbody Launch Bot
+            </h1>
+            <p className="text-xs text-gray-400">
+              Setting up {customerName}&apos;s workspace
+            </p>
+          </div>
         </div>
 
         {/* Messages area */}
