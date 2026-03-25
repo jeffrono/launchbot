@@ -157,8 +157,8 @@ export function ChatWorkspace({
         {/* Chat header */}
         <div className="border-b border-gray-200 bg-white px-6 py-3 flex items-center gap-3">
           <img
-            src="https://app.spara.co/api/v1/organizations/qx6XUAM4W/default-sales-rep-avatar"
-            alt="Mindbody"
+            src="/images/bot-avatar.png"
+            alt="Mindbody Launch Bot"
             className="w-9 h-9 rounded-full"
           />
           <div>
@@ -186,24 +186,41 @@ export function ChatWorkspace({
               );
             }
 
+            // Bot messages get the wizard avatar
             if (msg.richContent && msg.richContent.length > 0) {
               return (
-                <MessageRenderer
-                  key={msg.id}
-                  messages={msg.richContent}
-                  onAction={handleAction}
-                  onFileUpload={handleFileUpload}
-                  isLatest={isLatest}
-                />
+                <div key={msg.id} className="flex items-start gap-3">
+                  <img
+                    src="/images/bot-avatar.png"
+                    alt="Bot"
+                    className="w-8 h-8 rounded-full flex-shrink-0 mt-1"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <MessageRenderer
+                      messages={msg.richContent}
+                      onAction={handleAction}
+                      onFileUpload={handleFileUpload}
+                      isLatest={isLatest}
+                    />
+                  </div>
+                </div>
               );
             }
 
             return (
-              <TextBubble
-                key={msg.id}
-                content={msg.content}
-                role="assistant"
-              />
+              <div key={msg.id} className="flex items-start gap-3">
+                <img
+                  src="/images/bot-avatar.png"
+                  alt="Bot"
+                  className="w-8 h-8 rounded-full flex-shrink-0 mt-1"
+                />
+                <div className="flex-1 min-w-0">
+                  <TextBubble
+                    content={msg.content}
+                    role="assistant"
+                  />
+                </div>
+              </div>
             );
           })}
 
