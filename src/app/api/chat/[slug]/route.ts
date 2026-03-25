@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { json, error } from "@/lib/api";
 import { generateBotResponse } from "@/lib/llm";
 import { composeSystemPrompt, getWelcomeBackPrompt } from "@/lib/prompts";
+import { rateLimit } from "@/lib/rate-limit";
 import { v4 as uuid } from "uuid";
 import type { ConversationMessage, BotResponse } from "@/types/chat";
 import type { ModuleStatus } from "@/generated/prisma/client";
@@ -11,9 +12,18 @@ interface Params {
   params: Promise<{ slug: string }>;
 }
 
-// POST /api/chat/[slug] — send a message in a customer's chat
+// Max messages to keep in conversation JSON (older ones are trimmed)
+const MAX_STORED_MESSAGES = 200;
+const LLM_CONTEXT_WINDOW = 40;
+
+// POST /api/chat/[slug] — send a message
 export async function POST(req: NextRequest, { params }: Params) {
   const { slug } = await params;
+
+  // Rate limit: 20 messages per minute per workspace
+  const { allowed } = rateLimit(`chat:${slug}`, 20, 60_000);
+  if (!allowed) return error("Too many messages. Please slow down.", 429);
+
   const body = await req.json();
   const { message, buttonValue } = body;
 
@@ -45,12 +55,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const existingMessages = (conversation.messages || []) as unknown as ConversationMessage[];
 
   // Determine active module
-  const activeProgress = customer.progress.find(
-    (p) => p.status === "in_progress"
-  );
-  const nextPending = customer.progress.find(
-    (p) => p.status === "not_started"
-  );
+  const activeProgress = customer.progress.find((p) => p.status === "in_progress");
+  const nextPending = customer.progress.find((p) => p.status === "not_started");
   const activeModule = activeProgress?.module || nextPending?.module || null;
 
   // If starting a new module, mark it as in_progress
@@ -70,8 +76,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     metadata: (customer.metadata || {}) as Record<string, unknown>,
   });
 
-  // Build conversation history for LLM (windowed to last 40 messages)
-  const recentMessages = existingMessages.slice(-40);
+  // Build conversation history for LLM (windowed)
+  const recentMessages = existingMessages.slice(-LLM_CONTEXT_WINDOW);
   const chatHistory = recentMessages.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.role === "assistant" && m.richContent
@@ -89,14 +95,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       messages: [
         {
           type: "text",
-          content:
-            "I'm having a little trouble right now. Let me try again — could you repeat what you said?",
+          content: "I'm having a little trouble right now. Could you try again?",
         },
       ],
     };
   }
 
-  // Save user message
+  // Build messages
   const userMsg: ConversationMessage = {
     id: uuid(),
     role: "user",
@@ -104,7 +109,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     timestamp: new Date().toISOString(),
   };
 
-  // Save assistant message
   const assistantMsg: ConversationMessage = {
     id: uuid(),
     role: "assistant",
@@ -117,14 +121,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     timestamp: new Date().toISOString(),
   };
 
-  // Update conversation
-  const updatedMessages = [...existingMessages, userMsg, assistantMsg];
+  // Trim old messages to prevent unbounded growth
+  const allMessages = [...existingMessages, userMsg, assistantMsg];
+  const trimmedMessages = allMessages.length > MAX_STORED_MESSAGES
+    ? allMessages.slice(-MAX_STORED_MESSAGES)
+    : allMessages;
+
   await prisma.conversation.update({
     where: { id: conversation.id },
-    data: { messages: updatedMessages as unknown as object[] },
+    data: { messages: trimmedMessages as unknown as object[] },
   });
 
   // Handle module updates from LLM
+  let updatedProgress = customer.progress;
   if (botResponse.moduleUpdate) {
     const { moduleSlug, status, collectedData } = botResponse.moduleUpdate as {
       moduleSlug?: string;
@@ -134,17 +143,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const validStatuses = ["in_progress", "completed", "punted"];
     if (moduleSlug && status && validStatuses.includes(status)) {
-      const module = await prisma.module.findUnique({
-        where: { slug: moduleSlug },
-      });
-      if (module) {
+      const mod = await prisma.module.findUnique({ where: { slug: moduleSlug } });
+      if (mod) {
         const progressRecord = await prisma.customerModuleProgress.findUnique({
-          where: {
-            customerId_moduleId: {
-              customerId: customer.id,
-              moduleId: module.id,
-            },
-          },
+          where: { customerId_moduleId: { customerId: customer.id, moduleId: mod.id } },
         });
         if (progressRecord) {
           await prisma.customerModuleProgress.update({
@@ -153,21 +155,28 @@ export async function POST(req: NextRequest, { params }: Params) {
               status: status as ModuleStatus,
               ...(status === "completed" && { completedAt: new Date() }),
               ...(status === "punted" && { puntedAt: new Date() }),
-              ...(collectedData && {
-                collectedData: collectedData as object,
-              }),
+              ...(collectedData && { collectedData: collectedData as object }),
             },
           });
         }
       }
+
+      // Fetch updated progress to return to client
+      updatedProgress = await prisma.customerModuleProgress.findMany({
+        where: { customerId: customer.id },
+        include: { module: true },
+        orderBy: { module: { displayOrder: "asc" } },
+      });
     }
   }
 
+  // Return response with updated progress (no separate GET needed)
   return json({
     messages: botResponse.messages,
     sideTip: botResponse.sideTip,
     userMessage: userMsg,
     assistantMessage: assistantMsg,
+    progress: updatedProgress,
   });
 }
 
@@ -191,7 +200,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const conversation = customer.conversations[0];
   const messages = (conversation?.messages || []) as unknown as ConversationMessage[];
 
-  // If no messages yet, generate a welcome message
+  // Generate welcome message only if no messages exist
   if (messages.length === 0) {
     const firstModule = customer.progress[0]?.module;
     const welcomePrompt = composeSystemPrompt({
@@ -207,44 +216,27 @@ export async function GET(_req: NextRequest, { params }: Params) {
       welcomeResponse = await generateBotResponse(
         welcomePrompt,
         [],
-        "Hi! I'm ready to get started with setting up my Mindbody account."
+        "Hi! I'm ready to get started."
       );
     } catch {
       welcomeResponse = {
         messages: [
-          {
-            type: "text",
-            content: `Hi ${customer.name}! Welcome to the Mindbody Launch Bot. I'm here to help you get your business set up on Mindbody. Let's get started!`,
-          },
+          { type: "text", content: `Hi! I'm the Mindbody Launch Bot. Let's get your business set up.` },
           {
             type: "buttons",
             options: [
-              { label: "Let's do this!", value: "start", recommended: true },
-              { label: "Tell me more first", value: "info" },
+              { label: "Let's do this!", value: "Let's do this!", recommended: true },
+              { label: "Tell me more first", value: "Tell me more first" },
             ],
           },
         ],
-        sideTip: {
-          content:
-            "This process takes about 30-45 minutes, but you can stop and come back anytime!",
-          icon: "clock",
-        },
+        sideTip: { content: "This usually takes about 30 minutes. You can pause and come back anytime!", icon: "clock" },
       };
     }
 
-    // Save the initial exchange
-    const conv =
-      conversation ||
-      (await prisma.conversation.create({
-        data: { customerId: customer.id, messages: [] },
-      }));
-
-    const userMsg: ConversationMessage = {
-      id: uuid(),
-      role: "user",
-      content: "Hi! I'm ready to get started with setting up my Mindbody account.",
-      timestamp: new Date().toISOString(),
-    };
+    const conv = conversation || await prisma.conversation.create({
+      data: { customerId: customer.id, messages: [] },
+    });
 
     const assistantMsg: ConversationMessage = {
       id: uuid(),
@@ -260,10 +252,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     await prisma.conversation.update({
       where: { id: conv.id },
-      data: { messages: [userMsg, assistantMsg] as unknown as object[] },
+      data: { messages: [assistantMsg] as unknown as object[] },
     });
 
-    // Mark first module as in_progress
     if (customer.progress[0]) {
       await prisma.customerModuleProgress.update({
         where: { id: customer.progress[0].id },
@@ -272,46 +263,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     return json({
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        workspaceSlug: customer.workspaceSlug,
-      },
-      messages: [userMsg, assistantMsg],
+      customer: { id: customer.id, name: customer.name, workspaceSlug: customer.workspaceSlug },
+      messages: [assistantMsg],
       progress: customer.progress,
     });
   }
 
-  // Check if returning after being away
-  const lastMsgTime = messages[messages.length - 1]?.timestamp;
-  const hoursSinceLastMsg = lastMsgTime
-    ? (Date.now() - new Date(lastMsgTime).getTime()) / (1000 * 60 * 60)
-    : 0;
-
-  let welcomeBack = null;
-  if (hoursSinceLastMsg > 24) {
-    const completed = customer.progress.filter(
-      (p) => p.status === "completed"
-    );
-    const lastActive = customer.progress.find(
-      (p) => p.status === "in_progress"
-    );
-    welcomeBack = getWelcomeBackPrompt(
-      customer.name,
-      completed.length,
-      customer.progress.length,
-      lastActive?.module.title || null
-    );
-  }
-
+  // Return existing conversation
   return json({
-    customer: {
-      id: customer.id,
-      name: customer.name,
-      workspaceSlug: customer.workspaceSlug,
-    },
+    customer: { id: customer.id, name: customer.name, workspaceSlug: customer.workspaceSlug },
     messages,
     progress: customer.progress,
-    welcomeBack,
   });
 }

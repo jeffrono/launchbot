@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, ExternalLink, Download, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface Customer {
   id: string;
@@ -22,11 +23,34 @@ export default function CustomersPage() {
   const [newName, setNewName] = useState("");
   const [newStudioId, setNewStudioId] = useState("");
 
+  const [error, setError] = useState("");
+
   const fetchCustomers = async () => {
-    const res = await fetch("/api/customers");
-    const data = await res.json();
-    setCustomers(data);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/customers");
+      if (!res.ok) throw new Error("Failed to load customers");
+      const data = await res.json();
+      setCustomers(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const bulkExport = async () => {
+    const allData = [];
+    for (const c of customers) {
+      const res = await fetch(`/api/customers/${c.id}/export`);
+      if (res.ok) allData.push(await res.json());
+    }
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `all-customers-export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -92,12 +116,22 @@ export default function CustomersPage() {
             {customers.length} customer{customers.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> New Customer
-        </button>
+        <div className="flex gap-2">
+          {customers.length > 0 && (
+            <button
+              onClick={bulkExport}
+              className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-4 h-4" /> Export All
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> New Customer
+          </button>
+        </div>
       </div>
 
       {/* Create customer modal */}
@@ -166,8 +200,14 @@ export default function CustomersPage() {
       </div>
 
       {/* Customer list */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading...</p>
+        <TableSkeleton rows={4} />
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 text-sm">

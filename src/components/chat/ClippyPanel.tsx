@@ -76,6 +76,7 @@ export function ClippyPanel({ currentTip, customerName }: ClippyPanelProps) {
             >
               <button
                 onClick={() => setVisible(false)}
+                aria-label="Dismiss tip"
                 className="absolute top-2 right-2 text-gray-300 hover:text-gray-500"
               >
                 <X className="w-3 h-3" />

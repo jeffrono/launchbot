@@ -34,8 +34,8 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
-      <div className="flex items-end gap-3 max-w-3xl mx-auto">
+    <div className="border-t border-gray-200 bg-white p-3 sm:p-4">
+      <div className="flex items-end gap-2 sm:gap-3 max-w-3xl mx-auto">
         <textarea
           ref={inputRef}
           value={value}
@@ -44,6 +44,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
+          aria-label="Chat message"
           className={cn(
             "flex-1 resize-none rounded-2xl border border-gray-200 px-4 py-3 text-sm",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
@@ -60,6 +61,7 @@ export function ChatInput({
         <button
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
+          aria-label="Send message"
           className={cn(
             "flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all",
             value.trim() && !disabled

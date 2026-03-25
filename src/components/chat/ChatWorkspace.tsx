@@ -9,6 +9,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
 import { ModuleSidebar } from "./ModuleSidebar";
 import { ClippyPanel } from "./ClippyPanel";
+import { ErrorBoundaryWrapper } from "./ErrorBoundary";
 
 interface ModuleProgress {
   id: string;
@@ -40,6 +41,7 @@ export function ChatWorkspace({
   const [currentTip, setCurrentTip] = useState<SideTip | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const initRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     scrollRef.current?.scrollTo({
@@ -50,27 +52,25 @@ export function ChatWorkspace({
 
   // Auto-trigger welcome message on first load if no messages
   useEffect(() => {
-    if (messages.length === 0 && !isLoading) {
-      const initChat = async () => {
-        setIsLoading(true);
-        try {
-          const res = await fetch(`/api/chat/${slug}`);
-          const data = await res.json();
-          if (data.messages && data.messages.length > 0) {
-            setMessages(data.messages);
-          }
-          if (data.progress) {
-            setProgress(data.progress);
-          }
-        } catch (err) {
-          console.error("Failed to init chat:", err);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      initChat();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (initRef.current || messages.length > 0 || isLoading) return;
+    initRef.current = true;
+
+    const initChat = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/chat/${slug}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.messages?.length > 0) setMessages(data.messages);
+        if (data.progress) setProgress(data.progress);
+      } catch {
+        // Silent fail — user can type to start
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initChat();
+  }, [slug, messages.length, isLoading]);
 
   useEffect(() => {
     scrollToBottom();
@@ -101,6 +101,11 @@ export function ChatWorkspace({
         ),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Request failed");
+      }
+
       const data = await res.json();
 
       if (data.assistantMessage) {
@@ -111,20 +116,17 @@ export function ChatWorkspace({
         setCurrentTip(data.sideTip);
       }
 
-      // Refresh progress
-      const progressRes = await fetch(`/api/chat/${slug}`);
-      const progressData = await progressRes.json();
-      if (progressData.progress) {
-        setProgress(progressData.progress);
+      // Use progress from POST response (no separate GET needed)
+      if (data.progress) {
+        setProgress(data.progress);
       }
-    } catch (err) {
-      console.error("Chat error:", err);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: "assistant",
-          content: "Oops! Something went wrong. Please try again.",
+          content: "Something went wrong. Please try again.",
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -134,14 +136,22 @@ export function ChatWorkspace({
   };
 
   const handleAction = (value: string, label?: string) => {
-    // Send the human-readable label to the LLM, not the machine value
     sendMessage(label || value, true);
   };
 
-  const handleFileUpload = (files: File[]) => {
-    // TODO: Upload to storage, then send reference in chat
-    const fileNames = files.map((f) => f.name).join(", ");
-    sendMessage(`I've uploaded: ${fileNames}`);
+  const handleFileUpload = async (files: File[]) => {
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (res.ok) {
+          sendMessage(`I've uploaded: ${file.name}`);
+        }
+      } catch {
+        sendMessage(`I tried to upload ${file.name} but it failed.`);
+      }
+    }
   };
 
   const handleModuleClick = (moduleSlug: string) => {
@@ -149,103 +159,104 @@ export function ChatWorkspace({
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Left sidebar — module progress */}
-      <ModuleSidebar progress={progress} onModuleClick={handleModuleClick} />
-
-      {/* Center — chat */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Chat header */}
-        <div className="border-b border-gray-200 bg-white px-6 py-3 flex items-center gap-3">
-          <img
-            src="/images/bot-avatar.png"
-            alt="Mindbody Launch Bot"
-            className="w-9 h-9 rounded-full"
-          />
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Mindbody Launch Bot
-            </h1>
-            <p className="text-xs text-gray-400">
-              Setting up {customerName}&apos;s workspace
-            </p>
-          </div>
+    <ErrorBoundaryWrapper>
+      <div className="flex h-screen bg-gray-50">
+        {/* Left sidebar — module progress (hidden on small screens) */}
+        <div className="hidden md:block">
+          <ModuleSidebar progress={progress} onModuleClick={handleModuleClick} />
         </div>
 
-        {/* Messages area */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
-        >
-          {messages.map((msg, i) => {
-            const isLatest = i === messages.length - 1;
+        {/* Center — chat */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Chat header */}
+          <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center gap-3">
+            <img
+              src="/images/bot-avatar.png"
+              alt="Mindbody Launch Bot"
+              className="w-9 h-9 rounded-full"
+            />
+            <div>
+              <h1 className="text-base sm:text-lg font-semibold text-gray-900">
+                Mindbody Launch Bot
+              </h1>
+              <p className="text-xs text-gray-400">
+                Setting up {customerName}&apos;s workspace
+              </p>
+            </div>
+          </div>
 
-            if (msg.role === "user") {
-              return (
-                <TextBubble key={msg.id} content={msg.content} role="user" />
-              );
-            }
+          {/* Messages area */}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4"
+          >
+            {messages.map((msg, i) => {
+              const isLatest = i === messages.length - 1;
 
-            // Bot messages get the wizard avatar
-            if (msg.richContent && msg.richContent.length > 0) {
+              if (msg.role === "user") {
+                return (
+                  <TextBubble key={msg.id} content={msg.content} role="user" />
+                );
+              }
+
+              if (msg.richContent && msg.richContent.length > 0) {
+                return (
+                  <div key={msg.id} className="flex items-start gap-2 sm:gap-3">
+                    <img
+                      src="/images/bot-avatar.png"
+                      alt="Bot"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex-shrink-0 mt-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <MessageRenderer
+                        messages={msg.richContent}
+                        onAction={handleAction}
+                        onFileUpload={handleFileUpload}
+                        isLatest={isLatest}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <div key={msg.id} className="flex items-start gap-3">
+                <div key={msg.id} className="flex items-start gap-2 sm:gap-3">
                   <img
                     src="/images/bot-avatar.png"
                     alt="Bot"
-                    className="w-8 h-8 rounded-full flex-shrink-0 mt-1"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex-shrink-0 mt-1"
                   />
                   <div className="flex-1 min-w-0">
-                    <MessageRenderer
-                      messages={msg.richContent}
-                      onAction={handleAction}
-                      onFileUpload={handleFileUpload}
-                      isLatest={isLatest}
-                    />
+                    <TextBubble content={msg.content} role="assistant" />
                   </div>
                 </div>
               );
-            }
+            })}
 
-            return (
-              <div key={msg.id} className="flex items-start gap-3">
-                <img
-                  src="/images/bot-avatar.png"
-                  alt="Bot"
-                  className="w-8 h-8 rounded-full flex-shrink-0 mt-1"
-                />
-                <div className="flex-1 min-w-0">
-                  <TextBubble
-                    content={msg.content}
-                    role="assistant"
-                  />
-                </div>
-              </div>
-            );
-          })}
+            <AnimatePresence>{isLoading && <TypingIndicator />}</AnimatePresence>
+          </div>
 
-          <AnimatePresence>{isLoading && <TypingIndicator />}</AnimatePresence>
+          {/* Scroll to bottom */}
+          {showScrollBtn && (
+            <button
+              onClick={scrollToBottom}
+              aria-label="Scroll to bottom"
+              className="absolute bottom-24 right-1/2 translate-x-1/2 bg-white border border-gray-200 shadow-md rounded-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Scroll to bottom
+            </button>
+          )}
+
+          {/* Input */}
+          <ChatInput onSend={sendMessage} disabled={isLoading} />
         </div>
 
-        {/* Scroll to bottom */}
-        {showScrollBtn && (
-          <button
-            onClick={scrollToBottom}
-            className="absolute bottom-24 right-1/2 translate-x-1/2 bg-white border border-gray-200 shadow-md rounded-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-          >
-            Scroll to bottom
-          </button>
-        )}
-
-        {/* Input */}
-        <ChatInput onSend={sendMessage} disabled={isLoading} />
+        {/* Right panel — Clippy tips (hidden on small screens) */}
+        <div className="hidden lg:block">
+          <ClippyPanel currentTip={currentTip} customerName={customerName} />
+        </div>
       </div>
-
-      {/* Right panel — Clippy tips */}
-      <div className="hidden lg:block">
-        <ClippyPanel currentTip={currentTip} customerName={customerName} />
-      </div>
-    </div>
+    </ErrorBoundaryWrapper>
   );
 }

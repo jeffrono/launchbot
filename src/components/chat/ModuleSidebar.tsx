@@ -44,6 +44,7 @@ export function ModuleSidebar({ progress, onModuleClick }: ModuleSidebarProps) {
       {/* Toggle button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className="p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors flex items-center justify-center"
       >
         {collapsed ? (

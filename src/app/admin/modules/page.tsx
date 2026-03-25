@@ -127,14 +127,19 @@ export default function ModulesPage() {
     const updated = reordered.map((m, i) => ({ ...m, displayOrder: i + 1 }));
     setModules(updated);
 
-    // Persist each changed order to the API
-    for (const mod of updated) {
-      await fetch(`/api/modules/${mod.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayOrder: mod.displayOrder }),
-      });
-    }
+    // Only update modules whose order actually changed, in parallel
+    const changed = updated.filter(
+      (m, i) => m.displayOrder !== modules[i]?.displayOrder
+    );
+    await Promise.all(
+      changed.map((mod) =>
+        fetch(`/api/modules/${mod.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayOrder: mod.displayOrder }),
+        })
+      )
+    );
   };
 
   const deleteModule = async (id: string) => {
