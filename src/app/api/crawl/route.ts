@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { json, error } from "@/lib/api";
+import Anthropic from "@anthropic-ai/sdk";
+import type { DataType, ModuleStatus } from "@/generated/prisma/client";
 
 // POST /api/crawl — trigger a website crawl via Firecrawl
 export async function POST(req: NextRequest) {
@@ -109,9 +111,9 @@ export async function GET(req: NextRequest) {
 
     const statusData = await statusResponse.json();
 
-    // If complete, extract and store data
+    // If complete, extract and store data using Claude
     if (statusData.status === "completed" && customerId && statusData.data) {
-      const extractedData = extractBusinessData(statusData.data);
+      const extractedData = await extractBusinessDataWithClaude(statusData.data);
 
       // Update customer metadata with extracted data
       const customer = await prisma.customer.findUnique({
@@ -130,25 +132,49 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      // Pre-fill collected data
-      if (extractedData.businessInfo) {
-        await prisma.customerCollectedData.upsert({
-          where: {
-            customerId_dataType: {
-              customerId,
-              dataType: "business_info",
-            },
-          },
-          update: { data: extractedData.businessInfo as object },
-          create: {
-            customerId,
-            dataType: "business_info",
-            data: extractedData.businessInfo as object,
-          },
-        });
+      // Pre-fill collected data for each extracted data type
+      const dataTypeMapping: { key: string; dataType: DataType; moduleSlug: string }[] = [
+        { key: "businessInfo", dataType: "business_info", moduleSlug: "business-basics" },
+        { key: "staff", dataType: "staff", moduleSlug: "staff-details" },
+        { key: "classes", dataType: "classes", moduleSlug: "class-collection" },
+        { key: "appointments", dataType: "appointments", moduleSlug: "appointment-collection" },
+        { key: "pricing", dataType: "pricing", moduleSlug: "pricing-options" },
+        { key: "branding", dataType: "branding", moduleSlug: "branding-logo" },
+        { key: "waiver", dataType: "waiver", moduleSlug: "liability-waiver" },
+      ];
+
+      const populatedModuleSlugs: string[] = [];
+
+      for (const { key, dataType, moduleSlug } of dataTypeMapping) {
+        const data = (extractedData as Record<string, unknown>)[key] as Record<string, unknown> | undefined;
+        if (data && Object.keys(data).length > 0) {
+          await prisma.customerCollectedData.upsert({
+            where: { customerId_dataType: { customerId, dataType } },
+            update: { data: data as object },
+            create: { customerId, dataType, data: data as object },
+          });
+          populatedModuleSlugs.push(moduleSlug);
+        }
       }
 
-      return json({ status: "completed", data: extractedData });
+      // Mark pre-populated modules as partially_complete
+      if (populatedModuleSlugs.length > 0) {
+        const modules = await prisma.module.findMany({
+          where: { slug: { in: populatedModuleSlugs } },
+        });
+        for (const mod of modules) {
+          await prisma.customerModuleProgress.updateMany({
+            where: {
+              customerId,
+              moduleId: mod.id,
+              status: "not_started" as ModuleStatus,
+            },
+            data: { status: "partially_complete" as ModuleStatus },
+          });
+        }
+      }
+
+      return json({ status: "completed", data: extractedData, populatedModules: populatedModuleSlugs });
     }
 
     return json({ status: statusData.status, progress: statusData.total });
@@ -167,17 +193,147 @@ interface CrawlPage {
   };
 }
 
-function extractBusinessData(pages: CrawlPage[]) {
-  const allText = pages.map((p) => p.markdown || "").join("\n\n");
+const EXTRACTION_TOOL = {
+  name: "extract_business_data" as const,
+  description: "Extract structured business data from website content",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      businessInfo: {
+        type: "object" as const,
+        properties: {
+          name: { type: "string" as const },
+          description: { type: "string" as const },
+          address: { type: "string" as const },
+          phone: { type: "string" as const },
+          email: { type: "string" as const },
+          logoUrl: { type: "string" as const },
+        },
+      },
+      staff: {
+        type: "object" as const,
+        properties: {
+          members: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string" as const },
+                role: { type: "string" as const },
+                bio: { type: "string" as const },
+                photoUrl: { type: "string" as const },
+              },
+            },
+          },
+        },
+      },
+      classes: {
+        type: "object" as const,
+        properties: {
+          items: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string" as const },
+                description: { type: "string" as const },
+                schedule: { type: "string" as const },
+                duration: { type: "string" as const },
+                instructor: { type: "string" as const },
+                category: { type: "string" as const },
+              },
+            },
+          },
+        },
+      },
+      appointments: {
+        type: "object" as const,
+        properties: {
+          items: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string" as const },
+                description: { type: "string" as const },
+                duration: { type: "string" as const },
+                price: { type: "string" as const },
+              },
+            },
+          },
+        },
+      },
+      pricing: {
+        type: "object" as const,
+        properties: {
+          items: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string" as const },
+                price: { type: "string" as const },
+                description: { type: "string" as const },
+                type: { type: "string" as const },
+              },
+            },
+          },
+        },
+      },
+      branding: {
+        type: "object" as const,
+        properties: {
+          primaryColor: { type: "string" as const },
+          secondaryColor: { type: "string" as const },
+          logoUrl: { type: "string" as const },
+        },
+      },
+      waiver: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string" as const },
+        },
+      },
+    },
+  },
+};
+
+async function extractBusinessDataWithClaude(pages: CrawlPage[]) {
+  const allText = pages.map((p) => p.markdown || "").join("\n\n").slice(0, 30000);
   const firstPage = pages[0];
 
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      system: "You are a data extraction specialist. Extract structured business information from website content. Only include data you can actually find — leave fields empty if not present. Be thorough but accurate.",
+      messages: [{ role: "user", content: `Extract all business data from this website content:\n\n${allText}` }],
+      tools: [EXTRACTION_TOOL],
+      tool_choice: { type: "tool", name: "extract_business_data" },
+    });
+
+    const toolUse = response.content.find((block) => block.type === "tool_use");
+    if (toolUse && toolUse.type === "tool_use") {
+      const data = toolUse.input as Record<string, unknown>;
+      return {
+        ...data,
+        rawContent: allText.slice(0, 10000),
+        pageCount: pages.length,
+      };
+    }
+  } catch (e) {
+    console.error("Claude extraction error:", e);
+  }
+
+  // Fallback to basic extraction if Claude fails
   return {
     businessInfo: {
       name: firstPage?.metadata?.title || null,
       description: firstPage?.metadata?.description || null,
       logoUrl: firstPage?.metadata?.ogImage || null,
     },
-    rawContent: allText.slice(0, 10000), // Truncate for storage
+    rawContent: allText.slice(0, 10000),
     pageCount: pages.length,
   };
 }

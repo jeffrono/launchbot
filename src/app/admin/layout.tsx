@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { Users, LayoutGrid, Settings, LogOut } from "lucide-react";
+import { Users, LayoutGrid, Settings, LogOut, UserCog } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Customers", icon: Users },
   { href: "/admin/modules", label: "Modules", icon: LayoutGrid },
+  { href: "/admin/staff", label: "Team", icon: UserCog },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

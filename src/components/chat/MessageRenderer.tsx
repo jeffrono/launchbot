@@ -12,6 +12,10 @@ import { VideoEmbed } from "./VideoEmbed";
 import { ImageDisplay } from "./ImageDisplay";
 import { InfoBox } from "./InfoBox";
 import { QuickReply } from "./QuickReply";
+import { Carousel } from "./Carousel";
+import { IframeEmbed } from "./IframeEmbed";
+import { StepByStep } from "./StepByStep";
+import { GifEmbed } from "./GifEmbed";
 
 interface MessageRendererProps {
   messages: RichMessage[];
@@ -81,6 +85,29 @@ export function MessageRenderer({
                 disabled={!isLatest}
               />
             );
+          case "carousel":
+            return <Carousel key={i} slides={msg.slides} />;
+          case "iframe_embed":
+            return (
+              <IframeEmbed
+                key={i}
+                url={msg.url}
+                title={msg.title}
+                height={msg.height}
+                onComplete={(v) => onAction(v)}
+              />
+            );
+          case "step_by_step":
+            return (
+              <StepByStep
+                key={i}
+                title={msg.title}
+                steps={msg.steps}
+                onComplete={(v) => onAction(v)}
+              />
+            );
+          case "gif":
+            return <GifEmbed key={i} url={msg.url} alt={msg.alt} />;
           default:
             return null;
         }

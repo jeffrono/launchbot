@@ -24,6 +24,7 @@ const statusConfig: Record<string, { icon: string; color: string; label: string 
   not_started: { icon: "\u25CB", color: "text-gray-300", label: "Not started" },
   in_progress: { icon: "\u25CF", color: "text-blue-500", label: "In progress" },
   punted: { icon: "\u25CF", color: "text-amber-400", label: "Skipped" },
+  partially_complete: { icon: "\u25CF", color: "text-orange-400", label: "In progress" },
   completed: { icon: "\u2713", color: "text-green-500", label: "Complete" },
 };
 

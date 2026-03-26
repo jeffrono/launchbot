@@ -22,6 +22,8 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
   const [newStudioId, setNewStudioId] = useState("");
+  const [newSpecialistId, setNewSpecialistId] = useState("");
+  const [staffList, setStaffList] = useState<{ id: string; name: string; role: string }[]>([]);
 
   const [error, setError] = useState("");
 
@@ -36,6 +38,13 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const res = await fetch("/api/staff");
+      if (res.ok) setStaffList(await res.json());
+    } catch { /* ignore */ }
   };
 
   const bulkExport = async () => {
@@ -55,6 +64,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
+    fetchStaff();
   }, []);
 
   const createCustomer = async (e: React.FormEvent) => {
@@ -67,11 +77,13 @@ export default function CustomersPage() {
       body: JSON.stringify({
         name: newName.trim(),
         studioId: newStudioId.trim() || null,
+        assignedSpecialistId: newSpecialistId || null,
       }),
     });
 
     setNewName("");
     setNewStudioId("");
+    setNewSpecialistId("");
     setShowCreate(false);
     fetchCustomers();
   };
@@ -166,6 +178,23 @@ export default function CustomersPage() {
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Optional"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assigned Specialist
+                </label>
+                <select
+                  value={newSpecialistId}
+                  onChange={(e) => setNewSpecialistId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">None</option>
+                  {staffList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.role})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-3 justify-end">
                 <button

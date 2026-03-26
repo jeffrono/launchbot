@@ -54,11 +54,25 @@ Respond using the tool schema. Structure:
 - "checklist": Checklist (title: string, items: string[])
 - "file_dropzone": Upload area (label: string, acceptedTypes?: string[])
 - "info_box": Short callout IN CHAT only when essential (content: string, variant: "info"|"tip"|"warning")
+- "step_guide": Step-by-step guide displayed all at once (title: string, steps: [{title, description}])
+- "progress_widget": Loading/status indicator (label: string, status: "loading"|"complete"|"error")
+- "video_embed": Embedded video player (url: string, title?: string)
+- "image_display": Display an image (url: string, caption?: string)
+- "carousel": Swipeable multi-slide cards — use for informational content, onboarding overviews, feature highlights. Include emoji and bgColor for visual appeal. (slides: [{title, content, emoji?, bgColor?, imageUrl?}])
+- "iframe_embed": Embedded external webpage/widget — use for booking tools, payment portals, external forms. User clicks "I've completed this" when done. (url: string, title: string, height?: number)
+- "step_by_step": Interactive walkthrough where user progresses one step at a time — use for multi-step guides like payment portal setup. (title: string, steps: [{title, description, imageUrl?}])
+- "gif": Animated GIF — use SPARINGLY for humor, celebration, or ice-breaking. Pick relevant Giphy URLs. (url: string, alt?: string)
+
+### File & Screenshot Support
+- At the VERY BEGINNING of the onboarding, mention that the customer can drop files (spreadsheets, PDFs, screenshots of staff lists, pricing sheets, waivers, contracts, etc.) into the chat at ANY time and you'll extract the data automatically. This saves them tons of typing.
+- When a user pastes a screenshot, analyze the image and help them understand what they're looking at — they may be confused in another tab and need guidance on what to click.
+- When a user uploads a document (CSV, PDF, spreadsheet), analyze its contents and use the data to pre-fill relevant module fields. Acknowledge what you found.
 
 ## Flow Rules
 - After the user answers, acknowledge briefly ("Got it!" / "Nice!") then ask the next question
 - When a module's data is fully collected, set moduleUpdate.status to "completed" and move on
 - When user says "skip" or "later", set moduleUpdate.status to "punted" and move to next module
+- When a website crawl pre-fills data for a module, set that module's status to "partially_complete"
 - Every 3 completed modules, gently ask about punted ones
 `;
 
@@ -68,6 +82,14 @@ interface PromptContext {
   progress: (CustomerModuleProgress & { module: Module })[];
   collectedData: CustomerCollectedData[];
   metadata: Record<string, unknown>;
+  specialist?: {
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    bookingUrl: string;
+    photoUrl: string;
+  } | null;
 }
 
 export function composeSystemPrompt(context: PromptContext): string {
@@ -78,6 +100,17 @@ export function composeSystemPrompt(context: PromptContext): string {
   parts.push(`- Customer name: ${context.customerName}`);
   if (context.metadata && Object.keys(context.metadata).length > 0) {
     parts.push(`- Business metadata: ${JSON.stringify(context.metadata)}`);
+  }
+
+  // Assigned specialist
+  if (context.specialist) {
+    parts.push(`\n## Assigned Onboarding Specialist`);
+    parts.push(`- Name: ${context.specialist.name}`);
+    parts.push(`- Role: ${context.specialist.role}`);
+    parts.push(`- Email: ${context.specialist.email}`);
+    if (context.specialist.phone) parts.push(`- Phone: ${context.specialist.phone}`);
+    if (context.specialist.bookingUrl) parts.push(`- Booking URL: ${context.specialist.bookingUrl}`);
+    parts.push(`Use this info when introducing the onboarding team or when the customer asks about their specialist.`);
   }
 
   // Module progress
@@ -120,6 +153,14 @@ export function composeSystemPrompt(context: PromptContext): string {
         `\nModule content/resources: ${JSON.stringify(context.activeModule.content)}`
       );
     }
+  }
+
+  // Website crawl results
+  if (context.metadata && (context.metadata as Record<string, unknown>).crawlResults) {
+    const crawlResults = (context.metadata as Record<string, unknown>).crawlResults as Record<string, unknown>;
+    parts.push(`\n## Website Crawl Results`);
+    parts.push(`Data was extracted from the customer's website. Use this to pre-fill fields and confirm with the customer.`);
+    parts.push(JSON.stringify(crawlResults, null, 2));
   }
 
   // Punt reminder logic

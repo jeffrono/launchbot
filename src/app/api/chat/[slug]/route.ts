@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!allowed) return error("Too many messages. Please slow down.", 429);
 
   const body = await req.json();
-  const { message, buttonValue } = body;
+  const { message, buttonValue, imageUrl } = body;
 
   const userText = buttonValue || message;
   if (!userText) return error("Message is required");
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       collectedData: true,
       conversations: { orderBy: { updatedAt: "desc" }, take: 1 },
+      assignedSpecialist: true,
     },
   });
 
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     progress: customer.progress,
     collectedData: customer.collectedData,
     metadata: (customer.metadata || {}) as Record<string, unknown>,
+    specialist: customer.assignedSpecialist,
   });
 
   // Build conversation history for LLM (windowed)
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // Generate bot response
   let botResponse: BotResponse;
   try {
-    botResponse = await generateBotResponse(systemPrompt, chatHistory, userText);
+    botResponse = await generateBotResponse(systemPrompt, chatHistory, userText, imageUrl);
   } catch (e) {
     console.error("LLM error:", e);
     botResponse = {
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     role: "user",
     content: userText,
     timestamp: new Date().toISOString(),
+    ...(imageUrl && { imageUrl }),
   };
 
   const assistantMsg: ConversationMessage = {
@@ -141,7 +144,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       collectedData?: Record<string, unknown>;
     };
 
-    const validStatuses = ["in_progress", "completed", "punted"];
+    const validStatuses = ["in_progress", "completed", "punted", "partially_complete"];
     if (moduleSlug && status && validStatuses.includes(status)) {
       const mod = await prisma.module.findUnique({ where: { slug: moduleSlug } });
       if (mod) {
@@ -192,6 +195,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         orderBy: { module: { displayOrder: "asc" } },
       },
       collectedData: true,
+      assignedSpecialist: true,
     },
   });
 
@@ -209,6 +213,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       progress: customer.progress,
       collectedData: customer.collectedData,
       metadata: (customer.metadata || {}) as Record<string, unknown>,
+      specialist: customer.assignedSpecialist,
     });
 
     let welcomeResponse: BotResponse;
