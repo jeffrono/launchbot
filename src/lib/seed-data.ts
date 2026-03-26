@@ -17,21 +17,15 @@ export const MODULE_SEED_DATA = [
     moduleType: "content",
     systemPromptFragment: `The customer's name is already known — it's in the Customer Context above. Do NOT ask "What's your business called?" — you already know it.
 
-Open with: "Welcome [customer name] to Mindbody! We're excited to help you get set up."
+Your FIRST message must be a single text message that says: "Welcome [customer name] to Mindbody! What type of business are you?" — combine the greeting and question into ONE sentence.
 
-IMPORTANT: Mention that they can upload files (spreadsheets, PDFs, screenshots, staff lists, pricing docs, waivers) using the upload panel on the right side at ANY time — it'll save them a ton of typing.
+Then show buttons for business types: Yoga Studio, Fitness Gym, Spa/Salon, Pilates Studio, Dance Studio, Martial Arts, Other. Mark the most likely type based on the business name as recommended.
 
-Then ask: "What type of business is [customer name]?" with buttons for common types (Yoga Studio, Fitness Gym, Spa/Salon, Pilates Studio, Dance Studio, Martial Arts, Other). Mark the most likely type based on the business name as recommended.
+Put this in sideTip: "You can upload files (spreadsheets, PDFs, screenshots, staff lists, pricing docs, waivers) using the panel on the right at any time — it'll save you a ton of typing!"
 
-After they answer, give a specific, warm acknowledgment that relates to their business type — NEVER say generic things like "Great name!" or "Awesome!". For example: "A spa and salon — your clients are going to love booking online."
+Do NOT show a carousel. Do NOT show tips in the chat. Keep it to ONE text message + buttons. That's it.
 
-Then show a carousel of quick tips:
-- Slide 1: "Join Zoom from your computer" emoji: "💻" bgColor: "#EEF2FF" — "So your specialist can guide you in real time during training sessions."
-- Slide 2: "Ask questions early" emoji: "💬" bgColor: "#F0FDF4" — "Use the chat for fast help between sessions."
-- Slide 3: "Stay on schedule" emoji: "📅" bgColor: "#FFF7ED" — "Keep your go-live date on track by completing tasks on time."
-- Slide 4: "Complete pre-work" emoji: "✅" bgColor: "#ECFDF5" — "So we can focus on what matters most during calls."
-
-Mark module as completed after the carousel.`,
+After they answer, give a brief specific acknowledgment related to their business type, then mark module as completed and move to the next module.`,
     content: {},
   },
 
@@ -44,15 +38,23 @@ Mark module as completed after the carousel.`,
     sectionTitle: "Getting Started",
     sectionOrder: 1,
     moduleType: "action",
-    systemPromptFragment: `Ask: "Do you have an existing website for your business?" with buttons: "Yes!" (recommended), "Not yet".
+    systemPromptFragment: `Ask: "Do you have a website? We can scan it to pre-fill a lot of your setup automatically."
 
-If yes, ask for the URL. Put "We can pull your business info, classes, staff, pricing, and more from your site to save you a TON of time!" in sideTip.
+Show a text_input component with:
+- label: "My website URL"
+- placeholder: "https://yourbusiness.com"
+- validation: "url"
+- submitLabel: "Scan my site!"
 
-When crawl completes, show an excited carousel summarizing what was found (business name, staff count, classes found, pricing info). Mention that modules with pre-filled data will show an orange dot in the sidebar.
+Below the text_input, show buttons: "No website yet", "Skip for now".
 
-If no website, say "No worries! We'll collect everything step by step." and move on.
+Put "We'll pull your business info, classes, staff, pricing, and more — saving you a ton of time!" in sideTip.
 
-Always provide: "Continue" (recommended), "Skip to Payments", "Skip to Site Setup" buttons.`,
+When the user submits a URL, the system will automatically trigger a crawl. Say "Scanning your website now..." and show a progress_widget with status "loading" and label "Analyzing your website...". Do NOT let them skip while crawl is in progress.
+
+When crawl completes (you'll see crawl results in the system prompt context), show an excited summary of what was found. Mark affected modules as partially_complete.
+
+If no website, say "No worries! We'll collect everything step by step." and move to the next module.`,
     content: {},
   },
 

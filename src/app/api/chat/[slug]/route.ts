@@ -103,6 +103,54 @@ export async function POST(req: NextRequest, { params }: Params) {
     };
   }
 
+  // Auto-trigger website crawl if user submitted a URL in the website-crawl module
+  const isWebsiteCrawlModule = activeModule?.slug === "website-crawl";
+  const urlMatch = userText.match(/https?:\/\/[^\s]+/i) || userText.match(/[\w-]+\.(?:com|org|net|io|co|me|biz|info|us|uk)[^\s]*/i);
+  let crawlJobId: string | null = null;
+
+  if (isWebsiteCrawlModule && urlMatch) {
+    const rawUrl = urlMatch[0];
+    const crawlUrl = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+
+    try {
+      const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+      if (firecrawlKey) {
+        const crawlResponse = await fetch("https://api.firecrawl.dev/v1/crawl", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${firecrawlKey}`,
+          },
+          body: JSON.stringify({
+            url: crawlUrl,
+            limit: 20,
+            scrapeOptions: { formats: ["markdown"] },
+          }),
+        });
+
+        if (crawlResponse.ok) {
+          const crawlData = await crawlResponse.json();
+          crawlJobId = crawlData.id;
+
+          // Store crawl job info in customer metadata
+          await prisma.customer.update({
+            where: { id: customer.id },
+            data: {
+              metadata: {
+                ...((customer.metadata as object) || {}),
+                crawlJobId: crawlData.id,
+                crawlUrl,
+                crawlStatus: "running",
+              },
+            },
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Auto-crawl error:", e);
+    }
+  }
+
   // Build messages
   const userMsg: ConversationMessage = {
     id: uuid(),
@@ -180,6 +228,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     userMessage: userMsg,
     assistantMessage: assistantMsg,
     progress: updatedProgress,
+    ...(crawlJobId && { crawlJobId }),
   });
 }
 
