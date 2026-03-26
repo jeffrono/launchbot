@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 interface ChatInputProps {
   onSend: (message: string) => void;
   onImagePaste?: (file: File) => void;
+  onEnterEmpty?: () => void;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -14,6 +15,7 @@ interface ChatInputProps {
 export function ChatInput({
   onSend,
   onImagePaste,
+  onEnterEmpty,
   disabled,
   placeholder = "Type your message... (paste screenshots with Ctrl+V)",
 }: ChatInputProps) {
@@ -43,7 +45,11 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      if (!value.trim() && !pastedImage && onEnterEmpty) {
+        onEnterEmpty();
+      } else {
+        handleSubmit();
+      }
     }
   };
 

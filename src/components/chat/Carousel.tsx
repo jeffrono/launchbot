@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -15,9 +15,11 @@ interface CarouselSlide {
 
 interface CarouselProps {
   slides: CarouselSlide[];
+  onComplete?: (value: string) => void;
+  continueLabel?: string;
 }
 
-const bgColors = [
+const gradientColors = [
   "from-blue-500 to-indigo-600",
   "from-purple-500 to-pink-600",
   "from-teal-500 to-emerald-600",
@@ -25,14 +27,49 @@ const bgColors = [
   "from-cyan-500 to-blue-600",
 ];
 
-export function Carousel({ slides }: CarouselProps) {
-  const [current, setCurrent] = useState(0);
+function isHexColor(str: string): boolean {
+  return /^#[0-9A-Fa-f]{3,8}$/.test(str);
+}
 
-  const next = () => setCurrent((prev) => Math.min(prev + 1, slides.length - 1));
-  const prev = () => setCurrent((prev) => Math.max(prev - 1, 0));
+export function Carousel({ slides, onComplete, continueLabel }: CarouselProps) {
+  const [current, setCurrent] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const next = useCallback(
+    () => setCurrent((prev) => Math.min(prev + 1, slides.length - 1)),
+    [slides.length]
+  );
+  const prev = useCallback(
+    () => setCurrent((prev) => Math.max(prev - 1, 0)),
+    []
+  );
+
+  // Keyboard navigation
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") { next(); e.preventDefault(); }
+      if (e.key === "ArrowLeft") { prev(); e.preventDefault(); }
+    };
+    el.addEventListener("keydown", handleKey);
+    return () => el.removeEventListener("keydown", handleKey);
+  }, [next, prev]);
+
+  // Auto-focus for keyboard nav
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
 
   const slide = slides[current];
-  const bg = slide.bgColor || bgColors[current % bgColors.length];
+  const slideBgColor = slide.bgColor;
+  const isHex = slideBgColor && isHexColor(slideBgColor);
+  const useGradient = !isHex;
+  const gradientClass = useGradient
+    ? (slideBgColor || gradientColors[current % gradientColors.length])
+    : "";
+  const isLightBg = isHex; // hex colors from seed data are light pastels
+  const isLastSlide = current === slides.length - 1;
 
   return (
     <motion.div
@@ -41,7 +78,14 @@ export function Carousel({ slides }: CarouselProps) {
       transition={{ duration: 0.2 }}
       className="mr-auto w-full max-w-[85%]"
     >
-      <div className={`relative rounded-2xl overflow-hidden bg-gradient-to-br ${bg} text-white shadow-lg`}>
+      <div
+        ref={containerRef}
+        tabIndex={0}
+        className={`relative rounded-2xl overflow-hidden shadow-lg outline-none ${
+          useGradient ? `bg-gradient-to-br ${gradientClass} text-white` : ""
+        }`}
+        style={isHex ? { backgroundColor: slideBgColor } : undefined}
+      >
         {/* Slide content */}
         <AnimatePresence mode="wait">
           <motion.div
@@ -63,8 +107,16 @@ export function Carousel({ slides }: CarouselProps) {
                 <span className="text-3xl flex-shrink-0">{slide.emoji}</span>
               )}
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold mb-2">{slide.title}</h3>
-                <div className="text-sm leading-relaxed opacity-95 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-li:my-0 prose-strong:text-white">
+                <h3 className={`text-lg font-bold mb-2 ${isLightBg ? "text-gray-900" : ""}`}>
+                  {slide.title}
+                </h3>
+                <div
+                  className={`text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-li:my-0 ${
+                    isLightBg
+                      ? "text-gray-700 prose-strong:text-gray-900"
+                      : "text-white/95 prose-invert prose-strong:text-white"
+                  }`}
+                >
                   <ReactMarkdown>{slide.content}</ReactMarkdown>
                 </div>
               </div>
@@ -79,9 +131,13 @@ export function Carousel({ slides }: CarouselProps) {
               onClick={prev}
               disabled={current === 0}
               aria-label="Previous slide"
-              className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                isLightBg
+                  ? "bg-gray-900/10 hover:bg-gray-900/20"
+                  : "bg-black/20 hover:bg-black/30 backdrop-blur-sm"
+              }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
 
             {/* Dots */}
@@ -92,20 +148,35 @@ export function Carousel({ slides }: CarouselProps) {
                   onClick={() => setCurrent(i)}
                   aria-label={`Go to slide ${i + 1}`}
                   className={`w-2 h-2 rounded-full transition-all ${
-                    i === current ? "bg-white w-4" : "bg-white/40"
+                    i === current
+                      ? isLightBg ? "bg-gray-900 w-4" : "bg-white w-4"
+                      : isLightBg ? "bg-gray-900/30" : "bg-white/40"
                   }`}
                 />
               ))}
             </div>
 
-            <button
-              onClick={next}
-              disabled={current === slides.length - 1}
-              aria-label="Next slide"
-              className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            {isLastSlide && onComplete ? (
+              <button
+                onClick={() => onComplete("continue")}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold shadow-lg hover:bg-blue-700 transition-all active:scale-[0.95]"
+              >
+                {continueLabel || "Continue →"}
+              </button>
+            ) : (
+              <button
+                onClick={next}
+                disabled={isLastSlide}
+                aria-label="Next slide"
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                  isLightBg
+                    ? "bg-gray-900/10 hover:bg-gray-900/20"
+                    : "bg-black/20 hover:bg-black/30 backdrop-blur-sm"
+                }`}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
           </div>
         )}
       </div>
