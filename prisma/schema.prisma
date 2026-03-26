@@ -89,6 +89,10 @@ model Module {
   displayOrder         Int     @map("display_order")
   dependencyGroup      String? @map("dependency_group")
   dependencyOrder      Int     @default(0) @map("dependency_order")
+  sectionSlug          String  @default("getting-started") @map("section_slug")
+  sectionTitle         String  @default("Getting Started") @map("section_title")
+  sectionOrder         Int     @default(0) @map("section_order")
+  moduleType           String  @default("action") @map("module_type")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 

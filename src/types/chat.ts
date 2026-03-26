@@ -104,6 +104,7 @@ export interface CarouselSlide {
 export interface CarouselMessage {
   type: "carousel";
   slides: CarouselSlide[];
+  continueLabel?: string;
 }
 
 export interface IframeEmbedMessage {

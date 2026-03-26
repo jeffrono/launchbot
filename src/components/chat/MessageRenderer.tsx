@@ -86,7 +86,14 @@ export function MessageRenderer({
               />
             );
           case "carousel":
-            return <Carousel key={i} slides={msg.slides} />;
+            return (
+              <Carousel
+                key={i}
+                slides={msg.slides}
+                onComplete={(v) => onAction(v)}
+                continueLabel={msg.continueLabel}
+              />
+            );
           case "iframe_embed":
             return (
               <IframeEmbed

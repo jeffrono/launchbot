@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import type { ConversationMessage, SideTip } from "@/types/chat";
 import { TextBubble } from "./TextBubble";
@@ -19,6 +19,10 @@ interface ModuleProgress {
     slug: string;
     title: string;
     displayOrder: number;
+    sectionSlug?: string;
+    sectionTitle?: string;
+    sectionOrder?: number;
+    moduleType?: string;
   };
 }
 
@@ -172,6 +176,28 @@ export function ChatWorkspace({
     }
   };
 
+  // Find the latest recommended button for Enter-to-submit
+  const latestRecommended = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.richContent) {
+        for (const rich of msg.richContent) {
+          if (rich.type === "buttons" && "options" in rich) {
+            const rec = rich.options.find((o: { recommended?: boolean }) => o.recommended);
+            if (rec) return rec as { label: string; value: string };
+          }
+        }
+      }
+    }
+    return null;
+  }, [messages]);
+
+  const handleEnterEmpty = () => {
+    if (latestRecommended && !isLoading) {
+      handleAction(latestRecommended.value, latestRecommended.label);
+    }
+  };
+
   const handleModuleClick = (moduleSlug: string) => {
     sendMessage(`I'd like to work on the ${moduleSlug.replace(/-/g, " ")} module.`);
   };
@@ -267,12 +293,12 @@ export function ChatWorkspace({
           )}
 
           {/* Input */}
-          <ChatInput onSend={sendMessage} onImagePaste={handleImagePaste} disabled={isLoading} />
+          <ChatInput onSend={sendMessage} onImagePaste={handleImagePaste} onEnterEmpty={handleEnterEmpty} disabled={isLoading} />
         </div>
 
         {/* Right panel — Clippy tips (hidden on small screens) */}
         <div className="hidden lg:block">
-          <ClippyPanel currentTip={currentTip} customerName={customerName} />
+          <ClippyPanel currentTip={currentTip} customerName={customerName} onFileUpload={handleFileUpload} />
         </div>
       </div>
     </ErrorBoundaryWrapper>

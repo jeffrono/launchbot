@@ -21,10 +21,10 @@ export function TextBubble({ content, role }: TextBubbleProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+        "rounded-2xl px-4 py-3 text-sm leading-relaxed",
         role === "user"
-          ? "ml-auto bg-blue-600 text-white"
-          : "mr-auto bg-gray-100 text-gray-900"
+          ? "ml-auto bg-blue-600 text-white max-w-[60%]"
+          : "mr-auto bg-gray-100 text-gray-900 max-w-[80%]"
       )}
     >
       {role === "assistant" ? (

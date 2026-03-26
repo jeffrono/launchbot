@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Lightbulb, Zap, Heart } from "lucide-react";
+import { X, Sparkles, Lightbulb, Zap, Heart, Upload, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { SideTip } from "@/types/chat";
 
 interface ClippyPanelProps {
   currentTip: SideTip | null;
   customerName: string;
+  onFileUpload?: (files: File[]) => void;
 }
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -27,9 +28,13 @@ const motivationalTips = [
   "Need a break? Just come back anytime — we'll pick up right where you left off.",
 ];
 
-export function ClippyPanel({ currentTip, customerName }: ClippyPanelProps) {
+export function ClippyPanel({ currentTip, customerName, onFileUpload }: ClippyPanelProps) {
   const [visible, setVisible] = useState(true);
   const [tipIndex, setTipIndex] = useState(0);
+  const [uploadExpanded, setUploadExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currentTip) {
@@ -46,6 +51,22 @@ export function ClippyPanel({ currentTip, customerName }: ClippyPanelProps) {
     content: motivationalTips[tipIndex],
     icon: "sparkles",
   };
+
+  const handleFiles = useCallback((files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+    setUploadedFiles((prev) => [
+      ...prev,
+      ...fileArray.map((f) => ({ name: f.name, size: f.size })),
+    ]);
+    onFileUpload?.(fileArray);
+  }, [onFileUpload]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  }, [handleFiles]);
 
   return (
     <div className="w-72 h-full border-l border-gray-200 bg-gradient-to-b from-purple-50 to-white flex flex-col">
@@ -100,6 +121,90 @@ export function ClippyPanel({ currentTip, customerName }: ClippyPanelProps) {
           </p>
         </div>
       </div>
+
+      {/* Persistent file upload section */}
+      {onFileUpload && (
+        <div className="border-t border-gray-100">
+          <button
+            onClick={() => setUploadExpanded(!uploadExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Upload className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium text-gray-700">Upload Files</span>
+              {uploadedFiles.length > 0 && (
+                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
+                  {uploadedFiles.length}
+                </span>
+              )}
+            </div>
+            {uploadExpanded ? (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronUp className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+
+          <AnimatePresence>
+            {uploadExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4">
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      "border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all",
+                      isDragging
+                        ? "border-blue-400 bg-blue-50"
+                        : "border-gray-200 hover:border-blue-300 hover:bg-blue-50/50"
+                    )}
+                  >
+                    <Upload className={cn(
+                      "w-6 h-6 mx-auto mb-2",
+                      isDragging ? "text-blue-500" : "text-gray-400"
+                    )} />
+                    <p className="text-xs text-gray-500">
+                      {isDragging ? "Drop files here!" : "Drag & drop or click to browse"}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      PDFs, spreadsheets, images, docs
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => e.target.files && handleFiles(e.target.files)}
+                    />
+                  </div>
+
+                  {/* Uploaded file list */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {uploadedFiles.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="truncate flex-1">{f.name}</span>
+                          <span className="text-gray-400">{(f.size / 1024).toFixed(0)}KB</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function QuickReply({ options, onSelect, disabled }: QuickReplyProps) {
           key={i}
           onClick={() => onSelect(opt)}
           disabled={disabled}
-          className="rounded-full px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-full px-5 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 hover:shadow-md hover:border-gray-300 transition-all active:scale-[0.95] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {opt}
         </button>

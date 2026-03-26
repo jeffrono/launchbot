@@ -26,6 +26,8 @@ async function main() {
   console.log(`Seeding ${MODULE_SEED_DATA.length} modules...`);
 
   for (const mod of MODULE_SEED_DATA) {
+    const dependencyGroup = "dependencyGroup" in mod ? (mod.dependencyGroup as string) : null;
+    const dependencyOrder = "dependencyOrder" in mod ? (mod.dependencyOrder as number) : 0;
     await prisma.module.upsert({
       where: { slug: mod.slug },
       update: {
@@ -34,8 +36,12 @@ async function main() {
         displayOrder: mod.displayOrder,
         systemPromptFragment: mod.systemPromptFragment,
         content: mod.content,
-        dependencyGroup: mod.dependencyGroup || null,
-        dependencyOrder: mod.dependencyOrder || 0,
+        dependencyGroup: dependencyGroup || null,
+        dependencyOrder: dependencyOrder || 0,
+        sectionSlug: mod.sectionSlug || "getting-started",
+        sectionTitle: mod.sectionTitle || "Getting Started",
+        sectionOrder: mod.sectionOrder || 0,
+        moduleType: mod.moduleType || "action",
       },
       create: {
         slug: mod.slug,
@@ -44,8 +50,12 @@ async function main() {
         displayOrder: mod.displayOrder,
         systemPromptFragment: mod.systemPromptFragment,
         content: mod.content,
-        dependencyGroup: mod.dependencyGroup || null,
-        dependencyOrder: mod.dependencyOrder || 0,
+        dependencyGroup: dependencyGroup || null,
+        dependencyOrder: dependencyOrder || 0,
+        sectionSlug: mod.sectionSlug || "getting-started",
+        sectionTitle: mod.sectionTitle || "Getting Started",
+        sectionOrder: mod.sectionOrder || 0,
+        moduleType: mod.moduleType || "action",
       },
     });
     console.log(`  ✓ ${mod.title}`);
