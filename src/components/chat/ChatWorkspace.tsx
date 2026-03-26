@@ -248,30 +248,22 @@ export function ChatWorkspace({
             if (progressData.progress) setProgress(progressData.progress);
           }
 
-          // Add a summary message
-          const summary = data.extractedData;
-          const parts: string[] = ["Website scan complete!"];
-          if (summary?.staff?.members?.length) parts.push(`Found ${summary.staff.members.length} staff members`);
-          if (summary?.classes?.items?.length) parts.push(`Found ${summary.classes.items.length} classes`);
-          if (summary?.pricing?.items?.length) parts.push(`Found ${summary.pricing.items.length} pricing options`);
-          if (summary?.populatedModules?.length) parts.push(`Pre-filled ${summary.populatedModules.length} modules`);
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `crawl-${Date.now()}`,
-              role: "assistant",
-              content: parts.join(". ") + ".",
-              richContent: [
-                { type: "text" as const, content: parts.join(". ") + " Check the sidebar for orange dots — those modules already have data!" },
-                { type: "buttons" as const, options: [
-                  { label: "Continue", value: "The website crawl is complete. Let's continue to the next step.", recommended: true },
-                ] },
-              ],
-              timestamp: new Date().toISOString(),
-            },
-          ]);
           setCrawlStatus(null);
+
+          // Build a summary of what was found
+          const summary = data.extractedData;
+          const findings: string[] = [];
+          if (summary?.businessInfo?.name) findings.push(`Business: ${summary.businessInfo.name}`);
+          if (summary?.staff?.members?.length) findings.push(`${summary.staff.members.length} staff members: ${(summary.staff.members as {name: string}[]).map((m: {name: string}) => m.name).join(", ")}`);
+          if (summary?.classes?.items?.length) findings.push(`${summary.classes.items.length} classes: ${(summary.classes.items as {name: string}[]).map((c: {name: string}) => c.name).join(", ")}`);
+          if (summary?.pricing?.items?.length) findings.push(`${summary.pricing.items.length} pricing options`);
+          if (summary?.branding?.primaryColor) findings.push(`Brand color: ${summary.branding.primaryColor}`);
+          if (summary?.populatedModules?.length) findings.push(`Pre-filled ${summary.populatedModules.length} modules (check sidebar for orange dots)`);
+
+          // Send crawl results directly to the LLM so it can present them and move on
+          const crawlSummaryMsg = `The website crawl is complete. Here's what was extracted:\n${findings.join("\n")}\n\nPlease present these findings to me in an exciting way (use a carousel if there's enough data), then automatically move to the next module. The data has already been saved to the relevant modules.`;
+          sendMessage(crawlSummaryMsg);
+
           return true; // stop polling
         }
 
