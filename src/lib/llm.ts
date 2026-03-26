@@ -35,10 +35,17 @@ const RESPONSE_TOOL = {
                 "iframe_embed",
                 "step_by_step",
                 "gif",
+                "text_input",
               ],
             },
             content: { type: "string" as const },
             title: { type: "string" as const },
+            placeholder: { type: "string" as const },
+            validation: {
+              type: "string" as const,
+              enum: ["url", "email", "phone", "none"],
+            },
+            submitLabel: { type: "string" as const },
             items: { type: "array" as const, items: { type: "string" as const } },
             options: {
               type: "array" as const,

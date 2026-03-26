@@ -124,6 +124,11 @@ export function ChatWorkspace({
       if (data.progress) {
         setProgress(data.progress);
       }
+
+      // Start crawl polling if a crawl was triggered
+      if (data.crawlJobId) {
+        pollCrawlStatus();
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -175,6 +180,78 @@ export function ChatWorkspace({
       sendMessage("I tried to paste a screenshot but the upload failed.");
     }
   };
+
+  // Crawl status polling
+  const [crawlStatus, setCrawlStatus] = useState<{
+    status: string;
+    total?: number;
+    completed?: number;
+    pagesFound?: number;
+    currentPages?: { url: string; title: string }[];
+    extractedData?: Record<string, unknown>;
+  } | null>(null);
+
+  const pollCrawlStatus = useCallback(async () => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/chat/${slug}/crawl-status`);
+        if (!res.ok) return true; // stop polling
+        const data = await res.json();
+        setCrawlStatus(data);
+
+        if (data.status === "completed") {
+          // Refresh progress to show partially_complete dots
+          const progressRes = await fetch(`/api/chat/${slug}`);
+          if (progressRes.ok) {
+            const progressData = await progressRes.json();
+            if (progressData.progress) setProgress(progressData.progress);
+          }
+
+          // Add a summary message
+          const summary = data.extractedData;
+          const parts: string[] = ["Website scan complete!"];
+          if (summary?.staff?.members?.length) parts.push(`Found ${summary.staff.members.length} staff members`);
+          if (summary?.classes?.items?.length) parts.push(`Found ${summary.classes.items.length} classes`);
+          if (summary?.pricing?.items?.length) parts.push(`Found ${summary.pricing.items.length} pricing options`);
+          if (summary?.populatedModules?.length) parts.push(`Pre-filled ${summary.populatedModules.length} modules`);
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `crawl-${Date.now()}`,
+              role: "assistant",
+              content: parts.join(". ") + ".",
+              richContent: [
+                { type: "text" as const, content: parts.join(". ") + " Check the sidebar for orange dots — those modules already have data!" },
+                { type: "buttons" as const, options: [
+                  { label: "Continue", value: "The website crawl is complete. Let's continue to the next step.", recommended: true },
+                ] },
+              ],
+              timestamp: new Date().toISOString(),
+            },
+          ]);
+          setCrawlStatus(null);
+          return true; // stop polling
+        }
+
+        return data.status === "failed" || data.status === "cancelled";
+      } catch {
+        return true; // stop on error
+      }
+    };
+
+    // Poll every 3 seconds
+    const interval = setInterval(async () => {
+      const shouldStop = await poll();
+      if (shouldStop) clearInterval(interval);
+    }, 3000);
+
+    // Initial poll immediately
+    poll();
+
+    // Cleanup after 5 minutes max
+    setTimeout(() => clearInterval(interval), 300000);
+  }, [slug]);
 
   // Find the latest recommended button for Enter-to-submit
   const latestRecommended = useMemo(() => {
@@ -277,6 +354,43 @@ export function ChatWorkspace({
                 </div>
               );
             })}
+
+            {/* Crawl progress indicator */}
+            {crawlStatus && crawlStatus.status !== "completed" && (
+              <div className="flex items-start gap-2 sm:gap-3">
+                <img src="/images/bot-avatar.png" alt="Bot" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex-shrink-0 mt-1" />
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 max-w-[80%]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm font-medium text-blue-700">Scanning your website...</span>
+                  </div>
+                  {crawlStatus.total ? (
+                    <div className="mb-2">
+                      <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round(((crawlStatus.completed || 0) / crawlStatus.total) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {crawlStatus.completed || 0} of {crawlStatus.total} pages processed
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-blue-600">Starting crawl...</p>
+                  )}
+                  {crawlStatus.currentPages && crawlStatus.currentPages.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {crawlStatus.currentPages.map((page, i) => (
+                        <p key={i} className="text-xs text-gray-500 truncate">
+                          {page.title || page.url}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <AnimatePresence>{isLoading && <TypingIndicator />}</AnimatePresence>
           </div>

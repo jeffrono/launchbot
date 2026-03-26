@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Send, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +22,13 @@ export function ChatInput({
   const [value, setValue] = useState("");
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus input when it becomes enabled (after bot responds)
+  useEffect(() => {
+    if (!disabled) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [disabled]);
 
   const handleSubmit = () => {
     if (pastedImage && onImagePaste) {

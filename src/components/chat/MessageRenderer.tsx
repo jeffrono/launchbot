@@ -16,6 +16,7 @@ import { Carousel } from "./Carousel";
 import { IframeEmbed } from "./IframeEmbed";
 import { StepByStep } from "./StepByStep";
 import { GifEmbed } from "./GifEmbed";
+import { TextInput } from "./TextInput";
 
 interface MessageRendererProps {
   messages: RichMessage[];
@@ -115,6 +116,18 @@ export function MessageRenderer({
             );
           case "gif":
             return <GifEmbed key={i} url={msg.url} alt={msg.alt} />;
+          case "text_input":
+            return (
+              <TextInput
+                key={i}
+                label={msg.label}
+                placeholder={msg.placeholder}
+                validation={msg.validation}
+                submitLabel={msg.submitLabel}
+                onSubmit={(v) => onAction(v)}
+                disabled={!isLatest}
+              />
+            );
           default:
             return null;
         }

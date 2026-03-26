@@ -15,7 +15,8 @@ export type ChatMessageType =
   | "carousel"
   | "iframe_embed"
   | "step_by_step"
-  | "gif";
+  | "gif"
+  | "text_input";
 
 export interface TextMessage {
   type: "text";
@@ -126,6 +127,14 @@ export interface GifMessage {
   alt?: string;
 }
 
+export interface TextInputMessage {
+  type: "text_input";
+  label: string;
+  placeholder?: string;
+  validation?: "url" | "email" | "phone" | "none";
+  submitLabel?: string;
+}
+
 export type RichMessage =
   | TextMessage
   | ButtonsMessage
@@ -141,7 +150,8 @@ export type RichMessage =
   | CarouselMessage
   | IframeEmbedMessage
   | StepByStepMessage
-  | GifMessage;
+  | GifMessage
+  | TextInputMessage;
 
 export interface SideTip {
   content: string;

@@ -66,6 +66,7 @@ Respond using the tool schema. Structure:
 - "iframe_embed": Embedded external webpage/widget — use for booking tools, payment portals, external forms. User clicks "I've completed this" when done. (url: string, title: string, height?: number)
 - "step_by_step": Interactive walkthrough where user progresses one step at a time — use for multi-step guides like payment portal setup. (title: string, steps: [{title, description, imageUrl?}])
 - "gif": Animated GIF — use SPARINGLY for humor, celebration, or ice-breaking. Pick relevant Giphy URLs. (url: string, alt?: string)
+- "text_input": Inline text field with submit button — use when you need the user to type a specific value like a URL, email, or phone number. (label: string, placeholder?: string, validation?: "url"|"email"|"phone"|"none", submitLabel?: string)
 
 ### File & Screenshot Support
 - At the VERY BEGINNING of the onboarding, mention that the customer can drop files (spreadsheets, PDFs, screenshots of staff lists, pricing sheets, waivers, contracts, etc.) into the chat at ANY time and you'll extract the data automatically. This saves them tons of typing.
