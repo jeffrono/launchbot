@@ -1,11 +1,25 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { MODULE_SEED_DATA } from "../src/lib/seed-data";
-import "dotenv/config";
+import * as fs from "fs";
 
-const adapter = new PrismaNeon({
-  connectionString: process.env.DATABASE_URL!,
-});
+// Load .env.local (takes priority), then .env
+for (const envFile of [".env.local", ".env"]) {
+  if (fs.existsSync(envFile)) {
+    const content = fs.readFileSync(envFile, "utf-8");
+    for (const line of content.split("\n")) {
+      const match = line.match(/^(\w+)="?([^"]*)"?$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2];
+      }
+    }
+  }
+}
+
+const connectionString = process.env.DATABASE_URL!;
+console.log("Connecting to:", connectionString.replace(/:[^@]+@/, ":***@"));
+
+const adapter = new PrismaNeon({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
