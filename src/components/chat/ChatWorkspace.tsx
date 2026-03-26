@@ -156,7 +156,48 @@ export function ChatWorkspace({
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         if (res.ok) {
           const data = await res.json();
-          sendMessage(`I've uploaded: ${file.name}${data.url ? ` (${data.url})` : ""}`);
+
+          // Build a rich message that includes file content for the LLM
+          const parts: string[] = [`I've uploaded a file: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`];
+
+          if (data.textContent) {
+            parts.push(`\nHere are the file contents:\n\`\`\`\n${data.textContent}\n\`\`\``);
+            parts.push("\nPlease analyze this file and extract any relevant data for my onboarding (staff names, classes, pricing, schedules, waivers, policies, etc). Show me what you found and update the relevant modules.");
+          } else if (data.isImage && data.url) {
+            // For images, send with image URL for vision analysis
+            const imgMsg = `I've uploaded an image: ${file.name}. Please analyze it.`;
+            // Send as a message with imageUrl for vision
+            const userMsg: ConversationMessage = {
+              id: `user-${Date.now()}`,
+              role: "user",
+              content: imgMsg,
+              imageUrl: data.url,
+              timestamp: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, userMsg]);
+            setIsLoading(true);
+            try {
+              const chatRes = await fetch(`/api/chat/${slug}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: imgMsg, imageUrl: data.url }),
+              });
+              if (chatRes.ok) {
+                const chatData = await chatRes.json();
+                if (chatData.assistantMessage) setMessages((prev) => [...prev, chatData.assistantMessage]);
+                if (chatData.sideTip) setCurrentTip(chatData.sideTip);
+                if (chatData.progress) setProgress(chatData.progress);
+              }
+            } finally {
+              setIsLoading(false);
+            }
+            continue; // Skip the normal sendMessage flow
+          } else if (data.url) {
+            parts.push(`\nFile URL: ${data.url}`);
+            parts.push("\nPlease analyze this file and extract any relevant data for my onboarding.");
+          }
+
+          sendMessage(parts.join(""));
         }
       } catch {
         sendMessage(`I tried to upload ${file.name} but it failed.`);

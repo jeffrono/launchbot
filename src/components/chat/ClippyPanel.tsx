@@ -33,7 +33,7 @@ export function ClippyPanel({ currentTip, customerName, onFileUpload }: ClippyPa
   const [tipIndex, setTipIndex] = useState(0);
   const [uploadExpanded, setUploadExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number; status: "uploading" | "processing" | "done" }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,12 +55,30 @@ export function ClippyPanel({ currentTip, customerName, onFileUpload }: ClippyPa
   const handleFiles = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files);
     if (fileArray.length === 0) return;
-    setUploadedFiles((prev) => [
-      ...prev,
-      ...fileArray.map((f) => ({ name: f.name, size: f.size })),
-    ]);
+    // Add files with "uploading" status, then mark as "processing" after upload
+    const newFiles = fileArray.map((f) => ({ name: f.name, size: f.size, status: "uploading" as const }));
+    setUploadedFiles((prev) => [...prev, ...newFiles]);
     onFileUpload?.(fileArray);
+    // Mark as processing after a brief delay (upload is async in parent)
+    setTimeout(() => {
+      setUploadedFiles((prev) =>
+        prev.map((f) => newFiles.some((nf) => nf.name === f.name && f.status === "uploading")
+          ? { ...f, status: "processing" }
+          : f
+        )
+      );
+    }, 500);
+    // Mark as done after processing (rough estimate)
+    setTimeout(() => {
+      setUploadedFiles((prev) =>
+        prev.map((f) => f.status === "processing" ? { ...f, status: "done" } : f)
+      );
+    }, 8000);
   }, [onFileUpload]);
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -191,10 +209,25 @@ export function ClippyPanel({ currentTip, customerName, onFileUpload }: ClippyPa
                   {uploadedFiles.length > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {uploadedFiles.map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg px-2.5 py-1.5">
-                          <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                          <span className="truncate flex-1">{f.name}</span>
-                          <span className="text-gray-400">{(f.size / 1024).toFixed(0)}KB</span>
+                        <div key={i} className="flex items-center gap-2 text-xs bg-gray-50 rounded-lg px-2.5 py-1.5 group">
+                          {f.status === "uploading" ? (
+                            <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                          ) : f.status === "processing" ? (
+                            <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                          ) : (
+                            <FileText className="w-3 h-3 text-green-500 flex-shrink-0" />
+                          )}
+                          <span className="truncate flex-1 text-gray-600">{f.name}</span>
+                          <span className="text-gray-400 text-[10px]">
+                            {f.status === "uploading" ? "Uploading..." : f.status === "processing" ? "Processing..." : `${(f.size / 1024).toFixed(0)}KB`}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                            aria-label="Remove file"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                       ))}
                     </div>
