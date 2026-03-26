@@ -12,6 +12,7 @@ datasource db {
 enum ModuleStatus {
   not_started
   in_progress
+  partially_complete
   punted
   completed
 }
@@ -27,22 +28,51 @@ enum DataType {
   marketplace
   classpass
   kickoff
+  waiver
+  tax_rates
+  cancellation
+  forms
+  payments
+  login_credentials
+  intake
+  payment_hardware
+  client_forms
+}
+
+// ─── Staff Members (Internal Mindbody Team) ──────────────────────────
+
+model StaffMember {
+  id          String   @id @default(uuid())
+  name        String
+  email       String
+  phone       String   @default("")
+  role        String   @default("Onboarding Specialist")
+  bookingUrl  String   @default("") @map("booking_url")
+  photoUrl    String   @default("") @map("photo_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customers   Customer[]
+
+  @@map("staff_members")
 }
 
 // ─── Customers ───────────────────────────────────────────────────────
 
 model Customer {
-  id             String   @id @default(uuid())
-  name           String
-  studioId       String?  @map("studio_id")
-  workspaceSlug  String   @unique @map("workspace_slug")
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                    String       @id @default(uuid())
+  name                  String
+  studioId              String?      @map("studio_id")
+  workspaceSlug         String       @unique @map("workspace_slug")
+  metadata              Json         @default("{}")
+  assignedSpecialistId  String?      @map("assigned_specialist_id")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
 
-  progress       CustomerModuleProgress[]
-  conversations  Conversation[]
-  collectedData  CustomerCollectedData[]
+  assignedSpecialist    StaffMember? @relation(fields: [assignedSpecialistId], references: [id])
+  progress              CustomerModuleProgress[]
+  conversations         Conversation[]
+  collectedData         CustomerCollectedData[]
 
   @@map("customers")
 }

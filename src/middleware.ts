@@ -14,7 +14,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/modules") ||
     pathname.startsWith("/api/seed") ||
     pathname.startsWith("/api/crawl") ||
-    pathname.startsWith("/api/settings");
+    pathname.startsWith("/api/settings") ||
+    pathname.startsWith("/api/staff");
 
   if (isProtected) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
@@ -39,5 +40,6 @@ export const config = {
     "/api/crawl",
     "/api/settings",
     "/api/upload",
+    "/api/staff/:path*",
   ],
 };

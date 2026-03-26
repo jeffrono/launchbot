@@ -31,6 +31,10 @@ const RESPONSE_TOOL = {
                 "image_display",
                 "info_box",
                 "quick_reply",
+                "carousel",
+                "iframe_embed",
+                "step_by_step",
+                "gif",
               ],
             },
             content: { type: "string" as const },
@@ -84,6 +88,21 @@ const RESPONSE_TOOL = {
               type: "string" as const,
               enum: ["info", "tip", "warning"],
             },
+            slides: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                properties: {
+                  title: { type: "string" as const },
+                  content: { type: "string" as const },
+                  emoji: { type: "string" as const },
+                  bgColor: { type: "string" as const },
+                  imageUrl: { type: "string" as const },
+                },
+              },
+            },
+            height: { type: "number" as const },
+            alt: { type: "string" as const },
           },
           required: ["type"],
         },
@@ -101,7 +120,7 @@ const RESPONSE_TOOL = {
           moduleSlug: { type: "string" as const },
           status: {
             type: "string" as const,
-            enum: ["in_progress", "completed", "punted"],
+            enum: ["in_progress", "completed", "punted", "partially_complete"],
           },
           collectedData: { type: "object" as const },
         },
@@ -114,19 +133,29 @@ const RESPONSE_TOOL = {
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  imageUrl?: string;
 }
 
 export async function generateBotResponse(
   systemPrompt: string,
   conversationHistory: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  imageUrl?: string
 ): Promise<BotResponse> {
   const messages: Anthropic.MessageParam[] = [
     ...conversationHistory.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
-    { role: "user" as const, content: userMessage },
+    {
+      role: "user" as const,
+      content: imageUrl
+        ? [
+            { type: "image" as const, source: { type: "url" as const, url: imageUrl } },
+            { type: "text" as const, text: userMessage },
+          ]
+        : userMessage,
+    },
   ];
 
   const response = await anthropic.messages.create({

@@ -17,7 +17,7 @@ export async function GET() {
 // POST /api/customers — create a new customer
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, studioId, metadata } = body;
+  const { name, studioId, metadata, assignedSpecialistId } = body;
 
   if (!name) return error("Name is required");
 
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       studioId: studioId || null,
       workspaceSlug,
       metadata: metadata || {},
+      assignedSpecialistId: assignedSpecialistId || null,
     },
   });
 

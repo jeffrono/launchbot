@@ -146,11 +146,29 @@ export function ChatWorkspace({
       try {
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         if (res.ok) {
-          sendMessage(`I've uploaded: ${file.name}`);
+          const data = await res.json();
+          sendMessage(`I've uploaded: ${file.name}${data.url ? ` (${data.url})` : ""}`);
         }
       } catch {
         sendMessage(`I tried to upload ${file.name} but it failed.`);
       }
+    }
+  };
+
+  const handleImagePaste = async (file: File) => {
+    // Upload the screenshot
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      const imageUrl = data.url;
+      // Send with image context so the LLM can analyze it
+      sendMessage(
+        `[Screenshot attached${imageUrl ? `: ${imageUrl}` : ""}] Can you help me understand what I'm looking at?`
+      );
+    } catch {
+      sendMessage("I tried to paste a screenshot but the upload failed.");
     }
   };
 
@@ -249,7 +267,7 @@ export function ChatWorkspace({
           )}
 
           {/* Input */}
-          <ChatInput onSend={sendMessage} disabled={isLoading} />
+          <ChatInput onSend={sendMessage} onImagePaste={handleImagePaste} disabled={isLoading} />
         </div>
 
         {/* Right panel — Clippy tips (hidden on small screens) */}

@@ -11,7 +11,11 @@ export type ChatMessageType =
   | "video_embed"
   | "image_display"
   | "info_box"
-  | "quick_reply";
+  | "quick_reply"
+  | "carousel"
+  | "iframe_embed"
+  | "step_by_step"
+  | "gif";
 
 export interface TextMessage {
   type: "text";
@@ -89,6 +93,38 @@ export interface QuickReplyMessage {
   options: string[];
 }
 
+export interface CarouselSlide {
+  title: string;
+  content: string;
+  emoji?: string;
+  bgColor?: string;
+  imageUrl?: string;
+}
+
+export interface CarouselMessage {
+  type: "carousel";
+  slides: CarouselSlide[];
+}
+
+export interface IframeEmbedMessage {
+  type: "iframe_embed";
+  url: string;
+  title: string;
+  height?: number;
+}
+
+export interface StepByStepMessage {
+  type: "step_by_step";
+  title: string;
+  steps: { title: string; description: string; imageUrl?: string }[];
+}
+
+export interface GifMessage {
+  type: "gif";
+  url: string;
+  alt?: string;
+}
+
 export type RichMessage =
   | TextMessage
   | ButtonsMessage
@@ -100,7 +136,11 @@ export type RichMessage =
   | VideoEmbedMessage
   | ImageDisplayMessage
   | InfoBoxMessage
-  | QuickReplyMessage;
+  | QuickReplyMessage
+  | CarouselMessage
+  | IframeEmbedMessage
+  | StepByStepMessage
+  | GifMessage;
 
 export interface SideTip {
   content: string;
@@ -112,7 +152,7 @@ export interface BotResponse {
   sideTip?: SideTip;
   moduleUpdate?: {
     moduleSlug: string;
-    status: "in_progress" | "completed" | "punted";
+    status: "in_progress" | "completed" | "punted" | "partially_complete";
     collectedData?: Record<string, unknown>;
   };
 }
@@ -120,8 +160,9 @@ export interface BotResponse {
 export interface ConversationMessage {
   id: string;
   role: "user" | "assistant";
-  content: string; // plain text for user messages
-  richContent?: RichMessage[]; // structured content for bot messages
+  content: string;
+  richContent?: RichMessage[];
   sideTip?: SideTip;
   timestamp: string;
+  imageUrl?: string; // for screenshot/image messages
 }
